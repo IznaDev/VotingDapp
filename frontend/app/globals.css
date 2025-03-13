@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  h1 {
+    @apply text-3xl sm:text-4xl;
+  }
+
+  h2 {
+    @apply text-2xl sm:text-3xl;
+  }
+
+  h3 {
+    @apply text-xl sm:text-2xl;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 shadow;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 shadow-sm;
+  }
+
+  .btn-success {
+    @apply bg-success-600 text-white hover:bg-success-700 shadow;
+  }
+
+  .btn-danger {
+    @apply bg-danger-600 text-white hover:bg-danger-700 shadow;
+  }
+
+  .btn-warning {
+    @apply bg-warning-600 text-white hover:bg-warning-700 shadow;
+  }
+
+  .card {
+    @apply rounded-xl bg-white shadow-md p-6 transition-shadow hover:shadow-lg;
+  }
+
+  .input {
+    @apply flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  }
+
+  .section {
+    @apply py-4 md:py-6;
+  }
+}
