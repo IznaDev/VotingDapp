@@ -45,9 +45,11 @@ contract Voting is Ownable, ReentrancyGuard {
     event ProposalRegistered(uint proposalId);
     event Voted(address voter, uint proposalId);
 
-    ///@notice Initialize the contract with the owner address
-    ///@dev Sets the initial workflow status to RegisteringVoters
-    constructor() Ownable(msg.sender) {}
+    ///@notice Initialize the contract
+    ///@dev Sets up the contract with default state
+    constructor() {
+        _transferOwnership(msg.sender);
+    }
 
     modifier onlyVoters() {
         require(voters[msg.sender].isRegistered, "You're not a voter");
