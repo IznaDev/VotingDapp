@@ -1,4 +1,4 @@
-// File: /home/mbennani/dev/alyra/voting-dapp/app/layout.tsx
+// File: /home/mbennani/dev/VotingDapp/frontend/app/layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
