@@ -1,3 +1,6 @@
+'use client';
+
+
 import { useEffect, useState, useCallback } from 'react';
 import { useReadContract, useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, usePublicClient } from 'wagmi';
 import VotingABI from '../abis/Voting.json';
@@ -13,6 +16,9 @@ export enum WorkflowStatus {
   VotesTallied = 5
 }
 
+
+toast.success("Voter ajouté avec success");
+
 // Type pour les propositions
 export type Proposal = {
   description: string;
@@ -25,6 +31,22 @@ export type Voter = {
   hasVoted: boolean;
   votedProposalId: number;
 };
+
+export type VotingEvent = {
+  id: string;
+  eventName: string;
+  blockNumber: number;
+  timestamp: number;
+  transactionHash: string;
+  args: any;
+  formattedArgs: string;
+};
+
+type VoterRegisteredArgs = { voterAddress: `0x${string}` };
+type ProposalRegisteredArgs = { proposalId: bigint };
+type VotedArgs = { voter: `0x${string}`; proposalId: bigint };
+type WorkflowStatusChangeArgs = { previousStatus: bigint; newStatus: bigint };
+
 
 export const useVotingContract = () => {
   const { address, isConnected } = useAccount();
@@ -40,6 +62,9 @@ export const useVotingContract = () => {
   type ContractAddresses = {
     [chainId: number]: `0x${string}`;
   };
+
+  const [votingEvents, setVotingEvents] = useState<VotingEvent[]>([]);
+
   
   // Définir les adresses du contrat pour différentes chaînes
   const VOTING_CONTRACT_ADDRESSES: ContractAddresses = {
@@ -52,13 +77,13 @@ export const useVotingContract = () => {
     31337: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',// hardhat
   };
 
-  const FROM_BLOCK: { [chainId: number]: number } = {
-    11155111: 0, // Sepolia
-    31337: 0,// hardhat
+  const FROM_BLOCK: { [chainId: number]: BigInt } = {
+    11155111: 0n, // Sepolia
+    31337: 0n,// hardhat
   };
 
   const contractAddress = chainId ? VOTING_CONTRACT_ADDRESSES[chainId] : undefined;
-  const numberFromBlock = chainId ? FROM_BLOCK[chainId] : 0;
+  const numberFromBlock : BigInt = chainId ? FROM_BLOCK[chainId] : 0n;
   
   // Lecture du statut du workflow
   const { data: workflowStatus, refetch: refetchWorkflowStatus } = useReadContract({
@@ -336,7 +361,7 @@ export const useVotingContract = () => {
               }
             ]
           },
-          fromBlock: BigInt(numberFromBlock),
+          fromBlock: 0n,
           toBlock: 'latest'
         });
         
@@ -460,6 +485,152 @@ export const useVotingContract = () => {
     }
   }, [isConfirmed, refetchWorkflowStatus, refetchWinner, workflowStatus]);
 
+
+//////////////Gestion event
+
+
+
+const getWorkflowStatusName = (status: number): string => {
+  switch (status) {
+    case 0:
+      return "Enregistrement des votants";
+    case 1:
+      return "Enregistrement des propositions démarré";
+    case 2:
+      return "Enregistrement des propositions terminé";
+    case 3:
+      return "Session de vote démarrée";
+    case 4:
+      return "Session de vote terminée";
+    case 5:
+      return "Votes comptabilisés";
+    default:
+      return `Statut inconnu (${status})`;
+  }
+};
+
+
+
+
+useEffect(() => {
+  const fetchEvents = async () => {
+    if (!contractAddress || !publicClient) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Définir les types d'événements à récupérer
+      const eventTypes = [
+        {
+          name: 'VoterRegistered',
+          inputs: [{ indexed: false, name: 'voterAddress', type: 'address' }]
+        },
+        {
+          name: 'ProposalRegistered',
+          inputs: [{ indexed: false, name: 'proposalId', type: 'uint256' }]
+        },
+        {
+          name: 'Voted',
+          inputs: [
+            { indexed: false, name: 'voter', type: 'address' },
+            { indexed: false, name: 'proposalId', type: 'uint256' }
+          ]
+        },
+        {
+          name: 'WorkflowStatusChange',
+          inputs: [
+            { indexed: false, name: 'previousStatus', type: 'uint8' },
+            { indexed: false, name: 'newStatus', type: 'uint8' }
+          ]
+        }
+      ];
+      
+      // Récupérer les logs pour chaque type d'événement
+      const allEvents: VotingEvent[] = [];
+      
+      for (const eventType of eventTypes) {
+        try {
+          const logs = await publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              type: 'event',
+              name: eventType.name,
+              inputs: eventType.inputs
+            },
+            fromBlock: 0n,
+            toBlock: 'latest'
+          });
+          
+          // Récupérer les informations supplémentaires pour chaque log
+          for (const log of logs) {
+            try {
+              // Récupérer le bloc pour obtenir le timestamp
+              const block = await publicClient.getBlock({
+                blockHash: log.blockHash
+              });
+              
+              // Formater les arguments en fonction du type d'événement
+              let formattedArgs = '';
+              
+              if (eventType.name === 'VoterRegistered') {
+                // Typer explicitement les arguments
+                const args = log.args as VoterRegisteredArgs;
+                formattedArgs = `Votant enregistré: ${args.voterAddress}`;
+              } else if (eventType.name === 'ProposalRegistered') {
+                const args = log.args as ProposalRegisteredArgs;
+                formattedArgs = `Proposition enregistrée: #${Number(args.proposalId)}`;
+              } else if (eventType.name === 'Voted') {
+                const args = log.args as VotedArgs;
+                formattedArgs = `Vote de ${args.voter} pour la proposition #${Number(args.proposalId)}`;
+              } else if (eventType.name === 'WorkflowStatusChange') {
+                const args = log.args as WorkflowStatusChangeArgs;
+                const previousStatus = getWorkflowStatusName(Number(args.previousStatus));
+                const newStatus = getWorkflowStatusName(Number(args.newStatus));
+                formattedArgs = `Changement de statut: ${previousStatus} -> ${newStatus}`;
+              }
+              
+              allEvents.push({
+                id: `${log.transactionHash}-${log.logIndex}`,
+                eventName: eventType.name,
+                blockNumber: Number(log.blockNumber),
+                timestamp: Number(block.timestamp),
+                transactionHash: log.transactionHash,
+                args: log.args,
+                formattedArgs
+              });
+            } catch (error) {
+              console.error(`Erreur lors de la récupération des détails pour le log ${log.transactionHash}:`, error);
+            }
+          }
+        } catch (error) {
+          console.error(`Erreur lors de la récupération des événements ${eventType.name}:`, error);
+        }
+      }
+      
+      // Trier les événements par bloc/timestamp (du plus récent au plus ancien)
+      allEvents.sort((a, b) => b.blockNumber - a.blockNumber);
+      
+      setVotingEvents(allEvents);
+      setLoading(false);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des événements:", error);
+      setLoading(false);
+    }
+  };
+  
+  fetchEvents();
+}, [contractAddress, publicClient]);
+
+
+
+
+
+
+
+
   return {
     workflowStatus: workflowStatus as WorkflowStatus || WorkflowStatus.RegisteringVoters,
     winningProposalID: Number(winningProposalID || 0),
@@ -473,6 +644,7 @@ export const useVotingContract = () => {
     isConfirming,
     isConfirmed,
     error,
+    votingEvents,
     registerVoter,
     addProposal,
     vote,
