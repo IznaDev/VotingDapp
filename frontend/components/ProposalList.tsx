@@ -31,7 +31,7 @@ export const ProposalList = ({ onVote, showVoteButton = false, showResults = fal
           className={`p-4 rounded-lg border transition-all hover:shadow ${
             showResults && index === winningProposalID
               ? 'border-success-500 bg-success-50'
-              : voterInfo?.votedProposalId === index
+              : (voterInfo?.votedProposalId === index && workflowStatus > WorkflowStatus.VotingSessionStarted)
                 ? 'border-primary-500 bg-primary-50' 
                 : 'border-gray-200 bg-white'
           }`}
@@ -45,7 +45,7 @@ export const ProposalList = ({ onVote, showVoteButton = false, showResults = fal
                     : `Proposition #${index}`}
                 </span>
 
-                {voterInfo?.votedProposalId === index && (
+                {(voterInfo?.votedProposalId === index && workflowStatus > WorkflowStatus.VotingSessionStarted) && (
                   <span className="badge bg-primary-100 text-primary-800 border-primary-200">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
