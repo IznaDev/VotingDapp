@@ -8,10 +8,12 @@ import { VotingPanel } from '../components/VotingPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { VoterRegistration } from '../components/VoterRegistration';
 import { useVotingContract, WorkflowStatus } from '../hooks/useVotingContract';
+import { EventsHistory } from '../components/EventsHistory';
+import { Toaster } from 'react-hot-toast';
 
 export default function Home() {
   const { address, isConnected } = useAccount();
-  const { isOwner, isVoter, workflowStatus, loading } = useVotingContract();
+  const { isOwner, isVoter, workflowStatus, loading, votingEvents } = useVotingContract();
 
   if (loading) {
     return (
@@ -82,6 +84,10 @@ export default function Home() {
                 <p className="text-gray-600">Contactez l'administrateur pour obtenir l'accès au système de vote</p>
               </div>
             )}
+            {/* Sidebar avec historique des événements - occupe 1/3 de l'espace */}
+            <div className="lg:col-span-1">
+              <EventsHistory events={votingEvents} loading={loading} />
+            </div>
           </div>
         )}
         
