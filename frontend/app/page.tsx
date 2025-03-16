@@ -90,7 +90,15 @@ export default function Home() {
             </div>
           </div>
         )}
-        
+        <div>
+          <Toaster
+            toastOptions={{
+              position: "bottom-left",
+              duration: 5000,
+              style: { margin: "1em", padding: "1em" },
+            }}
+          />
+        </div>
         <footer className="mt-20 text-center text-gray-500 text-sm">
           <p>Voting DApp &copy; {new Date().getFullYear()} - Construit avec Next.js, RainbowKit et Wagmi</p>
         </footer>

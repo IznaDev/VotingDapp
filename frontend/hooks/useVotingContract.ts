@@ -17,8 +17,6 @@ export enum WorkflowStatus {
 }
 
 
-toast.success("Voter ajouté avec success");
-
 // Type pour les propositions
 export type Proposal = {
   description: string;
@@ -388,24 +386,35 @@ export const useVotingContract = () => {
 
   const addProposal = useCallback((description: string) => {
     if (!isVoter) return;
-    
-    writeContract({
-      address: contractAddress,
-      abi: VotingABI.abi,
-      functionName: 'addProposal',
-      args: [description],
-    });
-    let sasProposals: Proposal[] = proposals;
-    let nextindex: number = proposals.length+1;
-    
-    setProposals(prevProposals => [
-      ...prevProposals,
-      {
-        description: `Proposition ${nextindex}: ${description}`,
-        voteCount: 0
-      }
-    ]);
-    setProposalCount(nextindex);
+    try{
+      writeContract({
+        address: contractAddress,
+        abi: VotingABI.abi,
+        functionName: 'addProposal',
+        args: [description],
+      });
+      let sasProposals: Proposal[] = proposals;
+      let nextindex: number = proposals.length+1;
+      
+      setProposals(prevProposals => [
+        ...prevProposals,
+        {
+          description: `Proposition ${nextindex}: ${description}`,
+          voteCount: 0
+        }
+      ]);
+      setProposalCount(nextindex);
+      toast.success("Proposal ajouté avec success");
+    }catch(err: any){
+      console.log("addProposal : "+err)
+      toast.error("Une erreur est arrivé lors de l'ajout d'une proposal", {
+        duration: 5000,
+        style: {
+          wordBreak: "break-word",
+        },
+      });
+    }
+      
 
   }, [isVoter, writeContract]);
 
