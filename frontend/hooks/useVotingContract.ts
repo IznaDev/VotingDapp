@@ -101,7 +101,7 @@ export const useVotingContract = () => {
             name: 'VoterRegistered',
             inputs: [{ indexed: false, name: 'voterAddress', type: 'address' }]
           },
-          fromBlock: 0n,
+          fromBlock: numberFromBlock,
           toBlock: 'latest'
         });
         const isRegistered = (logs.some(log =>
@@ -375,7 +375,7 @@ export const useVotingContract = () => {
               }
             ]
           },
-          fromBlock: 0n,
+          fromBlock: numberFromBlock,
           toBlock: 'latest'
         });
 
