@@ -52,7 +52,7 @@ contract Voting is Ownable, ReentrancyGuard {
     }
 
     modifier onlyVoters() {
-       // require(voters[msg.sender].isRegistered, "You're not a voter");
+        require(voters[msg.sender].isRegistered, "You're not a voter");
         _;
     }
 
