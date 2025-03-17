@@ -62,7 +62,7 @@ export const useVotingContract = () => {
   };
 
   const [votingEvents, setVotingEvents] = useState<VotingEvent[]>([]);
-
+  const [lastAction, setLastAction] = useState("");
 
   // Définir les adresses du contrat pour différentes chaînes
   const VOTING_CONTRACT_ADDRESSES: ContractAddresses = {
@@ -75,13 +75,13 @@ export const useVotingContract = () => {
     31337: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',// hardhat
   };
 
-  const FROM_BLOCK: { [chainId: number]: BigInt } = {
+  const FROM_BLOCK: { [chainId: number]: bigint } = {
     11155111: 0n, // Sepolia
     31337: 0n,// hardhat
   };
 
   const contractAddress = chainId ? VOTING_CONTRACT_ADDRESSES[chainId] : undefined;
-  const numberFromBlock: BigInt = chainId ? FROM_BLOCK[chainId] : 0n;
+  const numberFromBlock: bigint = chainId ? FROM_BLOCK[chainId] : 0n;
 
   // Lecture du statut du workflow
   const { data: workflowStatus, refetch: refetchWorkflowStatus } = useReadContract({
@@ -107,7 +107,7 @@ export const useVotingContract = () => {
     functionName: 'getOneProposal',
     args: [BigInt(0)],
     query: {
-      enabled: !!contractAddress && isVoter,
+      enabled: !!contractAddress && isVoter && !isOwner,
     }
   });
 
@@ -178,15 +178,12 @@ export const useVotingContract = () => {
 
       // Vérifiez si nous avons déjà genesisProposalData
       if (genesisProposalData) {
-        console.log("Données Genesis depuis le hook:", genesisProposalData);
         const genesis = {
           description: (genesisProposalData as Proposal).description,
           voteCount: Number((genesisProposalData as Proposal).voteCount)
         };
 
         if (genesis.description !== "GENESIS") {
-          console.log("Proposition Genesis invalide:", genesis);
-          // Tenter de la récupérer manuellement
           const manualGenesis = await getProposalById(0);
           if (!manualGenesis || manualGenesis.description !== "GENESIS") {
             console.log("Impossible de récupérer Genesis, phase d'enregistrement pas encore commencée");
@@ -204,10 +201,8 @@ export const useVotingContract = () => {
         // Récupérer les propositions une par une
         while (hasMoreProposals) { // Limite pour éviter les boucles infinies
           try {
-            console.log(`Tentative de récupération de la proposition ${index}`);
             const proposal = await getProposalById(index);
             if (proposal && proposal.description) {
-              console.log(`Proposition ${index} récupérée:`, proposal);
               allProposals.push(proposal);
               index++;
             } else {
@@ -225,14 +220,10 @@ export const useVotingContract = () => {
         setProposalCount(allProposals.length);
       } else {
         console.log("Genesis data pas encore disponible, tentative de récupération manuelle");
-        // Tenter de récupérer manuellement Genesis
         const genesis = await getProposalById(0);
         if (genesis && genesis.description === "GENESIS") {
-          console.log("Genesis récupéré manuellement:", genesis);
           setProposals([genesis]);
           setProposalCount(1);
-          // Pas besoin de récupérer les autres propositions maintenant,
-          // l'effet se déclenchera à nouveau quand genesisProposalData sera disponible
         } else {
           console.log("Impossible de récupérer Genesis manuellement");
         }
@@ -246,7 +237,7 @@ export const useVotingContract = () => {
   const { writeContract, data: hash, error, isPending } = useWriteContract();
 
   // Attendre la confirmation de la transaction
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+  const { isLoading: isConfirming, isError, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({ hash });
 
   // Vérifier si l'utilisateur est le propriétaire du contrat
@@ -273,10 +264,10 @@ export const useVotingContract = () => {
   }, [address, isConnected]);
 
   useEffect(() => {
-    if (isConnected && contractAddress) {
+    if (isConnected && contractAddress && isVoter) {
       fetchProposals();
     }
-  }, [isConnected, contractAddress, fetchProposals]);
+  }, [isConnected, contractAddress, fetchProposals, isVoter]);
 
 
   const checkVoterStatus = useCallback(() => {
@@ -318,23 +309,13 @@ export const useVotingContract = () => {
   // Fonctions pour interagir avec le contrat
   const registerVoter = useCallback((voterAddress: string) => {
     if (!isOwner) return;
-    try {
-      writeContract({
-        address: contractAddress,
-        abi: VotingABI.abi,
-        functionName: 'addVoter',
-        args: [voterAddress],
-      });
-      toast.success("Voter ajouté avec success");
-    } catch (err: any) {
-      console.log("addVoter : " + err)
-      toast.error("Une erreur est arrivé lors de l'ajout d'un voter", {
-        duration: 5000,
-        style: {
-          wordBreak: "break-word",
-        },
-      });
-    }
+    setLastAction("registerVoter");
+    writeContract({
+      address: contractAddress,
+      abi: VotingABI.abi,
+      functionName: 'addVoter',
+      args: [voterAddress],
+    });
   }, [isOwner, writeContract]);
 
 
@@ -386,99 +367,302 @@ export const useVotingContract = () => {
 
   const addProposal = useCallback((description: string) => {
     if (!isVoter) return;
-    try {
-      writeContract({
-        address: contractAddress,
-        abi: VotingABI.abi,
-        functionName: 'addProposal',
-        args: [description],
-      });
-      let sasProposals: Proposal[] = proposals;
-      let nextindex: number = proposals.length + 1;
+    setLastAction("addProposal");
+    writeContract({
+      address: contractAddress,
+      abi: VotingABI.abi,
+      functionName: 'addProposal',
+      args: [description],
+    });
+    let sasProposals: Proposal[] = proposals;
+    let nextindex: number = proposals.length + 1;
 
-      setProposals(prevProposals => [
-        ...prevProposals,
-        {
-          description: `Proposition ${nextindex}: ${description}`,
-          voteCount: 0
-        }
-      ]);
-      setProposalCount(nextindex);
-      toast.success("Proposal ajouté avec success");
-    } catch (err: any) {
-      console.log("addProposal : " + err)
-      toast.error("Une erreur est arrivé lors de l'ajout d'une proposal", {
-        duration: 5000,
-        style: {
-          wordBreak: "break-word",
-        },
-      });
-    }
+    setProposals(prevProposals => [
+      ...prevProposals,
+      {
+        description: `Proposition ${nextindex}: ${description}`,
+        voteCount: 0
+      }
+    ]);
+    setProposalCount(nextindex);
 
 
   }, [isVoter, writeContract]);
 
   const vote = useCallback((proposalId: number) => {
-    if (!isVoter) return;
+      if (!isVoter) return;
+      setLastAction("vote");
+      writeContract({
+        address: contractAddress,
+        abi: VotingABI.abi,
+        functionName: 'setVote',
+        args: [BigInt(proposalId)],
+      });
+    }, [isVoter, writeContract]);
 
-    writeContract({
-      address: contractAddress,
-      abi: VotingABI.abi,
-      functionName: 'setVote',
-      args: [BigInt(proposalId)],
-    });
-  }, [isVoter, writeContract]);
 
-  // Fonctions d'administration
   const startProposalsRegistration = useCallback(() => {
     if (!isOwner) return;
-
+    setLastAction("startProposalsRegistration"); // Correction
     writeContract({
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'startProposalsRegistering',
     });
-  }, [isOwner, writeContract]);
+  }, [isOwner, writeContract, contractAddress]);
 
   const endProposalsRegistration = useCallback(() => {
     if (!isOwner) return;
-
+    setLastAction("endProposalsRegistration"); // Correction
     writeContract({
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'endProposalsRegistering',
     });
-  }, [isOwner, writeContract]);
+  }, [isOwner, writeContract, contractAddress]);
 
   const startVotingSession = useCallback(() => {
     if (!isOwner) return;
-
+    setLastAction("startVotingSession"); // Ajout manquant
     writeContract({
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'startVotingSession',
     });
-  }, [isOwner, writeContract]);
+  }, [isOwner, writeContract, contractAddress]);
 
   const endVotingSession = useCallback(() => {
     if (!isOwner) return;
-
+    setLastAction("endVotingSession"); // Ajout manquant
     writeContract({
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'endVotingSession',
     });
-  }, [isOwner, writeContract]);
+  }, [isOwner, writeContract, contractAddress]);
 
   const tallyVotes = useCallback(() => {
     if (!isOwner) return;
-
+    setLastAction("tallyVotes"); // Ajout manquant
     writeContract({
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'tallyVotes',
     });
-  }, [isOwner, writeContract]);
+  }, [isOwner, writeContract, contractAddress]);
+
+
+
+
+  const fetchEvents = async () => {
+    if (!contractAddress || !publicClient) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Définir les types d'événements à récupérer
+      const eventTypes = [
+        {
+          name: 'VoterRegistered',
+          inputs: [{ indexed: false, name: 'voterAddress', type: 'address' }]
+        },
+        {
+          name: 'ProposalRegistered',
+          inputs: [{ indexed: false, name: 'proposalId', type: 'uint256' }]
+        },
+        {
+          name: 'Voted',
+          inputs: [
+            { indexed: false, name: 'voter', type: 'address' },
+            { indexed: false, name: 'proposalId', type: 'uint256' }
+          ]
+        },
+        {
+          name: 'WorkflowStatusChange',
+          inputs: [
+            { indexed: false, name: 'previousStatus', type: 'uint8' },
+            { indexed: false, name: 'newStatus', type: 'uint8' }
+          ]
+        }
+      ];
+
+      // Récupérer les logs pour chaque type d'événement
+      const allEvents: VotingEvent[] = [];
+
+      for (const eventType of eventTypes) {
+        try {
+          const logs = await publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              type: 'event',
+              name: eventType.name,
+              inputs: eventType.inputs
+            },
+            fromBlock: numberFromBlock,
+            toBlock: 'latest'
+          });
+
+          // Récupérer les informations supplémentaires pour chaque log
+          for (const log of logs) {
+            try {
+              // Récupérer le bloc pour obtenir le timestamp
+              const block = await publicClient.getBlock({
+                blockHash: log.blockHash
+              });
+
+              // Formater les arguments en fonction du type d'événement
+              let formattedArgs = '';
+
+              if (eventType.name === 'VoterRegistered') {
+                // Typer explicitement les arguments
+                const args = log.args as VoterRegisteredArgs;
+                formattedArgs = `Votant enregistré: ${args.voterAddress}`;
+              } else if (eventType.name === 'ProposalRegistered') {
+                const args = log.args as ProposalRegisteredArgs;
+                formattedArgs = `Proposition enregistrée: #${Number(args.proposalId)}`;
+              } else if (eventType.name === 'Voted') {
+                const args = log.args as VotedArgs;
+                formattedArgs = `Vote de ${args.voter} pour la proposition #${Number(args.proposalId)}`;
+              } else if (eventType.name === 'WorkflowStatusChange') {
+                const args = log.args as WorkflowStatusChangeArgs;
+                const previousStatus = getWorkflowStatusName(Number(args.previousStatus));
+                const newStatus = getWorkflowStatusName(Number(args.newStatus));
+                formattedArgs = `Changement de statut: ${previousStatus} -> ${newStatus}`;
+              }
+
+              allEvents.push({
+                id: `${log.transactionHash}-${log.logIndex}`,
+                eventName: eventType.name,
+                blockNumber: Number(log.blockNumber),
+                timestamp: Number(block.timestamp),
+                transactionHash: log.transactionHash,
+                args: log.args,
+                formattedArgs
+              });
+            } catch (error) {
+              console.error(`Erreur lors de la récupération des détails pour le log ${log.transactionHash}:`, error);
+            }
+          }
+        } catch (error) {
+          console.error(`Erreur lors de la récupération des événements ${eventType.name}:`, error);
+        }
+      }
+
+      // Trier les événements par bloc/timestamp (du plus récent au plus ancien)
+      allEvents.sort((a, b) => b.blockNumber - a.blockNumber);
+
+      setVotingEvents(allEvents);
+      setLoading(false);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des événements:", error);
+      setLoading(false);
+    }
+  };
+
+  const refreshEventsOnly = useCallback(async () => {
+    if (!contractAddress || !publicClient) return;
+    
+    console.log("Rafraîchissement du tableau des événements uniquement");
+    setLoading(true);
+    try {
+      // Code existant pour récupérer les événements
+      const eventTypes = [
+        {
+          name: 'VoterRegistered',
+          inputs: [{ indexed: false, name: 'voterAddress', type: 'address' }]
+        },
+        {
+          name: 'ProposalRegistered',
+          inputs: [{ indexed: false, name: 'proposalId', type: 'uint256' }]
+        },
+        {
+          name: 'Voted',
+          inputs: [
+            { indexed: false, name: 'voter', type: 'address' },
+            { indexed: false, name: 'proposalId', type: 'uint256' }
+          ]
+        },
+        {
+          name: 'WorkflowStatusChange',
+          inputs: [
+            { indexed: false, name: 'previousStatus', type: 'uint8' },
+            { indexed: false, name: 'newStatus', type: 'uint8' }
+          ]
+        }
+      ];
+      
+      const allEvents: VotingEvent[] = [];
+      
+      for (const eventType of eventTypes) {
+        try {
+          const logs = await publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              type: 'event',
+              name: eventType.name,
+              inputs: eventType.inputs
+            },
+            fromBlock: numberFromBlock,
+            toBlock: 'latest'
+          });
+
+          // Récupérer les informations supplémentaires pour chaque log
+          for (const log of logs) {
+            try {
+              // Récupérer le bloc pour obtenir le timestamp
+              const block = await publicClient.getBlock({
+                blockHash: log.blockHash
+              });
+
+              // Formater les arguments en fonction du type d'événement
+              let formattedArgs = '';
+
+              if (eventType.name === 'VoterRegistered') {
+                // Typer explicitement les arguments
+                const args = log.args as VoterRegisteredArgs;
+                formattedArgs = `Votant enregistré: ${args.voterAddress}`;
+              } else if (eventType.name === 'ProposalRegistered') {
+                const args = log.args as ProposalRegisteredArgs;
+                formattedArgs = `Proposition enregistrée: #${Number(args.proposalId)}`;
+              } else if (eventType.name === 'Voted') {
+                const args = log.args as VotedArgs;
+                formattedArgs = `Vote de ${args.voter} pour la proposition #${Number(args.proposalId)}`;
+              } else if (eventType.name === 'WorkflowStatusChange') {
+                const args = log.args as WorkflowStatusChangeArgs;
+                const previousStatus = getWorkflowStatusName(Number(args.previousStatus));
+                const newStatus = getWorkflowStatusName(Number(args.newStatus));
+                formattedArgs = `Changement de statut: ${previousStatus} -> ${newStatus}`;
+              }
+
+              allEvents.push({
+                id: `${log.transactionHash}-${log.logIndex}`,
+                eventName: eventType.name,
+                blockNumber: Number(log.blockNumber),
+                timestamp: Number(block.timestamp),
+                transactionHash: log.transactionHash,
+                args: log.args,
+                formattedArgs
+              });
+            } catch (error) {
+              console.error(`Erreur lors de la récupération des détails pour le log ${log.transactionHash}:`, error);
+            }
+          }
+        } catch (error) {
+          console.error(`Erreur lors de la récupération des événements ${eventType.name}:`, error);
+        }
+      }
+      allEvents.sort((a, b) => b.blockNumber - a.blockNumber);
+
+      setVotingEvents(allEvents);
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      console.error("Erreur lors du rafraîchissement des événements:", error);
+    }
+  }, [contractAddress, publicClient]);
 
   // Rafraîchir les données après une transaction confirmée
   useEffect(() => {
@@ -490,9 +674,20 @@ export const useVotingContract = () => {
       if (workflowStatus === WorkflowStatus.VotesTallied) {
         refetchWinner();
       }
-
+      // Rafraîchir les événements
+      fetchEvents();
+      
+      
+      
+      
+      if (isVoter) {
+        // Rafraîchir les propositions
+        fetchProposals();
+        // Rafraîchir les informations du votant si nécessaire
+        refetchVoterData();
+      }
     }
-  }, [isConfirmed, refetchWorkflowStatus, refetchWinner, workflowStatus]);
+  }, [isConfirmed, refetchWorkflowStatus, refetchWinner, workflowStatus, fetchEvents, fetchProposals, isVoter, refetchVoterData]);
 
 
   //////////////Gestion event
@@ -518,124 +713,86 @@ export const useVotingContract = () => {
     }
   };
 
-
+  
 
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      if (!contractAddress || !publicClient) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-
-        // Définir les types d'événements à récupérer
-        const eventTypes = [
-          {
-            name: 'VoterRegistered',
-            inputs: [{ indexed: false, name: 'voterAddress', type: 'address' }]
-          },
-          {
-            name: 'ProposalRegistered',
-            inputs: [{ indexed: false, name: 'proposalId', type: 'uint256' }]
-          },
-          {
-            name: 'Voted',
-            inputs: [
-              { indexed: false, name: 'voter', type: 'address' },
-              { indexed: false, name: 'proposalId', type: 'uint256' }
-            ]
-          },
-          {
-            name: 'WorkflowStatusChange',
-            inputs: [
-              { indexed: false, name: 'previousStatus', type: 'uint8' },
-              { indexed: false, name: 'newStatus', type: 'uint8' }
-            ]
-          }
-        ];
-
-        // Récupérer les logs pour chaque type d'événement
-        const allEvents: VotingEvent[] = [];
-
-        for (const eventType of eventTypes) {
-          try {
-            const logs = await publicClient.getLogs({
-              address: contractAddress,
-              event: {
-                type: 'event',
-                name: eventType.name,
-                inputs: eventType.inputs
-              },
-              fromBlock: 0n,
-              toBlock: 'latest'
-            });
-
-            // Récupérer les informations supplémentaires pour chaque log
-            for (const log of logs) {
-              try {
-                // Récupérer le bloc pour obtenir le timestamp
-                const block = await publicClient.getBlock({
-                  blockHash: log.blockHash
-                });
-
-                // Formater les arguments en fonction du type d'événement
-                let formattedArgs = '';
-
-                if (eventType.name === 'VoterRegistered') {
-                  // Typer explicitement les arguments
-                  const args = log.args as VoterRegisteredArgs;
-                  formattedArgs = `Votant enregistré: ${args.voterAddress}`;
-                } else if (eventType.name === 'ProposalRegistered') {
-                  const args = log.args as ProposalRegisteredArgs;
-                  formattedArgs = `Proposition enregistrée: #${Number(args.proposalId)}`;
-                } else if (eventType.name === 'Voted') {
-                  const args = log.args as VotedArgs;
-                  formattedArgs = `Vote de ${args.voter} pour la proposition #${Number(args.proposalId)}`;
-                } else if (eventType.name === 'WorkflowStatusChange') {
-                  const args = log.args as WorkflowStatusChangeArgs;
-                  const previousStatus = getWorkflowStatusName(Number(args.previousStatus));
-                  const newStatus = getWorkflowStatusName(Number(args.newStatus));
-                  formattedArgs = `Changement de statut: ${previousStatus} -> ${newStatus}`;
-                }
-
-                allEvents.push({
-                  id: `${log.transactionHash}-${log.logIndex}`,
-                  eventName: eventType.name,
-                  blockNumber: Number(log.blockNumber),
-                  timestamp: Number(block.timestamp),
-                  transactionHash: log.transactionHash,
-                  args: log.args,
-                  formattedArgs
-                });
-              } catch (error) {
-                console.error(`Erreur lors de la récupération des détails pour le log ${log.transactionHash}:`, error);
-              }
-            }
-          } catch (error) {
-            console.error(`Erreur lors de la récupération des événements ${eventType.name}:`, error);
-          }
-        }
-
-        // Trier les événements par bloc/timestamp (du plus récent au plus ancien)
-        allEvents.sort((a, b) => b.blockNumber - a.blockNumber);
-
-        setVotingEvents(allEvents);
-        setLoading(false);
-      } catch (error) {
-        console.error("Erreur lors de la récupération des événements:", error);
-        setLoading(false);
-      }
-    };
-
     fetchEvents();
   }, [contractAddress, publicClient]);
 
 
 
-
+  useEffect(() => {
+    if (isConfirmed) {
+      // Toast de succès en fonction de la dernière action
+      switch (lastAction) {
+        case "tallyVotes":
+          toast.success("Détermination de la proposition gagnante avec succès");
+          break;
+        case "registerVoter":
+          toast.success("Votant ajouté avec succès");
+          break;
+        case "addProposal":
+          toast.success("Proposition ajoutée avec succès");
+          break;
+        case "vote":
+          toast.success("Vote validé avec succès");
+          break;
+        case "startProposalsRegistration":
+          toast.success("Enregistrement des propositions démarré avec succès");
+          break;
+        case "endProposalsRegistration":
+          toast.success("Enregistrement des propositions terminé avec succès");
+          break;
+        case "startVotingSession":
+          toast.success("Session de vote démarrée avec succès");
+          break;
+        case "endVotingSession":
+          toast.success("Session de vote terminée avec succès");
+          break;
+        default:
+          console.log("Transaction confirmée avec succès");
+      }
+      
+      // Réinitialiser l'action après affichage du toast
+      setLastAction("");
+    }
+  
+    if (isError || error) {
+      // Toast d'erreur en fonction de la dernière action
+      switch (lastAction) {
+        case "tallyVotes":
+          toast.error("Erreur lors de la détermination de la proposition gagnante");
+          break;
+        case "registerVoter":
+          toast.error("Erreur lors de l'ajout d'un votant");
+          break;
+        case "addProposal":
+          toast.error("Erreur lors de l'ajout d'une proposition");
+          break;
+        case "vote":
+          toast.error("Erreur lors du vote");
+          break;
+        case "startProposalsRegistration":
+          toast.error("Erreur lors du démarrage de l'enregistrement des propositions");
+          break;
+        case "endProposalsRegistration":
+          toast.error("Erreur lors de la fin de l'enregistrement des propositions");
+          break;
+        case "startVotingSession":
+          toast.error("Erreur lors du démarrage de la session de vote");
+          break;
+        case "endVotingSession":
+          toast.error("Erreur lors de la fin de la session de vote");
+          break;
+        default:
+          console.log(`Erreur lors de la transaction: ${error.message}`);
+      }
+      
+      // Réinitialiser l'action après affichage du toast d'erreur
+      setLastAction("");
+    }
+  }, [isConfirmed, isError, error, lastAction]);
 
 
 
