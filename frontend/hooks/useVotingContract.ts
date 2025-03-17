@@ -2,7 +2,7 @@
 
 
 import { useEffect, useState, useCallback } from 'react';
-import { useReadContract, useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, usePublicClient } from 'wagmi';
+import { useReadContract, useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, usePublicClient, useWatchContractEvent } from 'wagmi';
 import VotingABI from '../abis/Voting.json';
 import toast, { Toaster } from "react-hot-toast";
 
@@ -63,6 +63,7 @@ export const useVotingContract = () => {
 
   const [votingEvents, setVotingEvents] = useState<VotingEvent[]>([]);
   const [lastAction, setLastAction] = useState("");
+  const [processedEvents, setProcessedEvents] = useState<Set<string>>(new Set());
 
   // Définir les adresses du contrat pour différentes chaînes
   const VOTING_CONTRACT_ADDRESSES: ContractAddresses = {
@@ -117,7 +118,7 @@ export const useVotingContract = () => {
     functionName: 'getVoter',
     args: [address as `0x${string}`],
     query: {
-      enabled: !!address && !!contractAddress && isConnected,
+      enabled: !!address && !!contractAddress && isConnected && !isOwner,
     }
   });
 
@@ -380,7 +381,7 @@ export const useVotingContract = () => {
     setProposals(prevProposals => [
       ...prevProposals,
       {
-        description: `Proposition ${nextindex}: ${description}`,
+        description: `${description}`,
         voteCount: 0
       }
     ]);
@@ -566,7 +567,7 @@ export const useVotingContract = () => {
     if (!contractAddress || !publicClient) return;
     
     console.log("Rafraîchissement du tableau des événements uniquement");
-    setLoading(true);
+    //setLoading(true);
     try {
       // Code existant pour récupérer les événements
       const eventTypes = [
@@ -663,6 +664,111 @@ export const useVotingContract = () => {
       console.error("Erreur lors du rafraîchissement des événements:", error);
     }
   }, [contractAddress, publicClient]);
+
+
+  useWatchContractEvent({
+    address: contractAddress,
+    abi: VotingABI.abi,
+    eventName: 'VoterRegistered',
+    onLogs: async (logs) => {
+      // Vérifiez si ces logs sont nouveaux
+      const newLogs = logs.filter(log => 
+        !processedEvents.has(`${log.transactionHash}-${log.logIndex}`)
+      );
+      
+      if (newLogs.length > 0) {
+        console.log("Nouveaux événements VoterRegistered détectés!", newLogs);
+        
+        // Marquer ces logs comme traités
+        const updatedProcessedEvents = new Set(processedEvents);
+        newLogs.forEach(log => 
+          updatedProcessedEvents.add(`${log.transactionHash}-${log.logIndex}`)
+        );
+        setProcessedEvents(updatedProcessedEvents);
+        
+        // Mise à jour des données
+        refreshEventsOnly();
+      }
+    },
+  });
+
+  useWatchContractEvent({
+    address: contractAddress,
+    abi: VotingABI.abi,
+    eventName: 'ProposalRegistered',
+    onLogs: async (logs) => {
+      // Vérifiez si ces logs sont nouveaux
+      const newLogs = logs.filter(log => 
+        !processedEvents.has(`${log.transactionHash}-${log.logIndex}`)
+      );
+      
+      if (newLogs.length > 0) {
+        console.log("Nouveaux événements ProposalRegistered détectés!", newLogs);
+        
+        // Marquer ces logs comme traités
+        const updatedProcessedEvents = new Set(processedEvents);
+        newLogs.forEach(log => 
+          updatedProcessedEvents.add(`${log.transactionHash}-${log.logIndex}`)
+        );
+        setProcessedEvents(updatedProcessedEvents);
+        
+        // Mise à jour des données
+        refreshEventsOnly();
+      }
+    },
+  });
+
+  useWatchContractEvent({
+    address: contractAddress,
+    abi: VotingABI.abi,
+    eventName: 'Voted',
+    onLogs: async (logs) => {
+      // Vérifiez si ces logs sont nouveaux
+      const newLogs = logs.filter(log => 
+        !processedEvents.has(`${log.transactionHash}-${log.logIndex}`)
+      );
+      
+      if (newLogs.length > 0) {
+        console.log("Nouveaux événements Voted détectés!", newLogs);
+        
+        // Marquer ces logs comme traités
+        const updatedProcessedEvents = new Set(processedEvents);
+        newLogs.forEach(log => 
+          updatedProcessedEvents.add(`${log.transactionHash}-${log.logIndex}`)
+        );
+        setProcessedEvents(updatedProcessedEvents);
+        
+        // Mise à jour des données
+        refreshEventsOnly();
+      }
+    },
+  });
+  
+  useWatchContractEvent({
+    address: contractAddress,
+    abi: VotingABI.abi,
+    eventName: 'WorkflowStatusChange',
+    onLogs: async (logs) => {
+      // Vérifiez si ces logs sont nouveaux
+      const newLogs = logs.filter(log => 
+        !processedEvents.has(`${log.transactionHash}-${log.logIndex}`)
+      );
+      
+      if (newLogs.length > 0) {
+        console.log("Nouveaux événements WorkflowStatusChange détectés!", newLogs);
+        
+        // Marquer ces logs comme traités
+        const updatedProcessedEvents = new Set(processedEvents);
+        newLogs.forEach(log => 
+          updatedProcessedEvents.add(`${log.transactionHash}-${log.logIndex}`)
+        );
+        setProcessedEvents(updatedProcessedEvents);
+        
+        // Mise à jour des données
+        refreshEventsOnly();
+      }
+    },
+  });
 
   // Rafraîchir les données après une transaction confirmée
   useEffect(() => {
