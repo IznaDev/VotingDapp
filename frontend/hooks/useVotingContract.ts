@@ -2,9 +2,10 @@
 
 
 import { useEffect, useState, useCallback } from 'react';
-import { useReadContract, useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, usePublicClient, useWatchContractEvent } from 'wagmi';
+import { useReadContract, useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, usePublicClient, useWatchContractEvent, useSwitchChain } from 'wagmi';
 import VotingABI from '../abis/Voting.json';
 import toast, { Toaster } from "react-hot-toast";
+import { Chain } from 'viem';
 
 // Énumération pour les statuts du workflow
 export enum WorkflowStatus {
@@ -56,6 +57,7 @@ export const useVotingContract = () => {
   const [proposalCount, setProposalCount] = useState<number>(0);
   const [proposalIds, setProposalIds] = useState<number[]>([0]);
   const chainId = useChainId();
+  const { chains, switchChain } = useSwitchChain();
   const publicClient = usePublicClient();
   type ContractAddresses = {
     [chainId: number]: `0x${string}`;
@@ -67,22 +69,25 @@ export const useVotingContract = () => {
 
   // Définir les adresses du contrat pour différentes chaînes
   const VOTING_CONTRACT_ADDRESSES: ContractAddresses = {
-    11155111: '0x113339334422', // Sepolia Testnet
+    11155111: '0x4916b8F85a64B774BfF3398Af9c4C108C2Ff852C', // Sepolia Testnet
     31337: '0x5fbdb2315678afecb367f032d93f642f64180aa3',// hardhat
   };
 
   const OWNER_ADDRESS: ContractAddresses = {
-    11155111: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // Sepolia
+    11155111: '0xb4ef6e1029cD32Ec94020822e61503f550A8a353', // Sepolia
     31337: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',// hardhat
   };
 
   const FROM_BLOCK: { [chainId: number]: bigint } = {
-    11155111: 0n, // Sepolia
+    11155111: 7921441n, // Sepolia
     31337: 0n,// hardhat
   };
 
+  const chain: Chain = chains[chainId];
+
   const contractAddress = chainId ? VOTING_CONTRACT_ADDRESSES[chainId] : undefined;
   const numberFromBlock: bigint = chainId ? FROM_BLOCK[chainId] : 0n;
+
 
   const [isRegisteredInEvents, setIsRegisteredInEvents] = useState<boolean>(false);
   useEffect(() => {
@@ -343,6 +348,8 @@ export const useVotingContract = () => {
       abi: VotingABI.abi,
       functionName: 'addVoter',
       args: [voterAddress],
+      chain,
+      account: address,
     });
   }, [isOwner, writeContract]);
 
@@ -401,6 +408,8 @@ export const useVotingContract = () => {
       abi: VotingABI.abi,
       functionName: 'addProposal',
       args: [description],
+      chain,
+      account: address,
     });
     let sasProposals: Proposal[] = proposals;
     let nextindex: number = proposals.length + 1;
@@ -425,6 +434,8 @@ export const useVotingContract = () => {
       abi: VotingABI.abi,
       functionName: 'setVote',
       args: [BigInt(proposalId)],
+      chain,
+      account: address,
     });
   }, [isVoter, writeContract]);
 
@@ -436,6 +447,8 @@ export const useVotingContract = () => {
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'startProposalsRegistering',
+      chain,
+      account: address,
     });
   }, [isOwner, writeContract, contractAddress]);
 
@@ -446,6 +459,8 @@ export const useVotingContract = () => {
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'endProposalsRegistering',
+      chain,
+      account: address,
     });
   }, [isOwner, writeContract, contractAddress]);
 
@@ -456,6 +471,8 @@ export const useVotingContract = () => {
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'startVotingSession',
+      chain,
+      account: address,
     });
   }, [isOwner, writeContract, contractAddress]);
 
@@ -466,6 +483,8 @@ export const useVotingContract = () => {
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'endVotingSession',
+      chain,
+      account: address,
     });
   }, [isOwner, writeContract, contractAddress]);
 
@@ -476,6 +495,8 @@ export const useVotingContract = () => {
       address: contractAddress,
       abi: VotingABI.abi,
       functionName: 'tallyVotes',
+      chain,
+      account: address,
     });
   }, [isOwner, writeContract, contractAddress]);
 

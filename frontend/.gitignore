@@ -26,7 +26,7 @@ yarn-error.log*
 
 # local env files - commneted on Nov 12 if required in future may be uncommented
 .env.*.local
-# .env
+.env
 .env.local
 #.env.uat.local
 
