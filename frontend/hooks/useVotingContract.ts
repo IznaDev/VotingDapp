@@ -69,7 +69,7 @@ export const useVotingContract = () => {
 
   // Définir les adresses du contrat pour différentes chaînes
   const VOTING_CONTRACT_ADDRESSES: ContractAddresses = {
-    11155111: '0x4916b8F85a64B774BfF3398Af9c4C108C2Ff852C', // Sepolia Testnet
+    11155111: '0x30b5Ba39B8199a4b0D8C63FFd8d04F13b564179b', // Sepolia Testnet
     31337: '0x5fbdb2315678afecb367f032d93f642f64180aa3',// hardhat
   };
 
@@ -79,7 +79,7 @@ export const useVotingContract = () => {
   };
 
   const FROM_BLOCK: { [chainId: number]: bigint } = {
-    11155111: 7921441n, // Sepolia
+    11155111: 7923468n, // Sepolia
     31337: 0n,// hardhat
   };
 
